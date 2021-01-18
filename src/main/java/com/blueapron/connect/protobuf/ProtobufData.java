@@ -3,6 +3,7 @@ package com.blueapron.connect.protobuf;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Descriptors;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.OneofDescriptor;
 import com.google.protobuf.GeneratedMessageV3;
@@ -50,6 +51,7 @@ class ProtobufData {
   private final Schema schema;
   private final String legacyName;
   private final boolean useConnectSchemaMap;
+  private final boolean shouldOutputEnumNumbers;
   public static final Descriptors.FieldDescriptor.Type[] PROTO_TYPES_WITH_DEFAULTS = new Descriptors.FieldDescriptor.Type[] { INT32, INT64, SINT32, SINT64, FLOAT, DOUBLE, BOOL, STRING, BYTES, ENUM };
   private HashMap<String, String> connectProtoNameMap = new HashMap<String, String>();
 
@@ -93,9 +95,14 @@ class ProtobufData {
     this(clazz, legacyName, false);
   }
 
-  ProtobufData(Class<? extends com.google.protobuf.GeneratedMessageV3> clazz, String legacyName, boolean useConnectSchemaMap ) {
+  ProtobufData(Class<? extends com.google.protobuf.GeneratedMessageV3> clazz, String legacyName, boolean useConnectSchemaMap) {
+    this(clazz, legacyName, useConnectSchemaMap, false);
+  }
+
+  ProtobufData(Class<? extends com.google.protobuf.GeneratedMessageV3> clazz, String legacyName, boolean useConnectSchemaMap, boolean shouldOutputEnumNumbers) {
     this.legacyName = legacyName;
     this.useConnectSchemaMap = useConnectSchemaMap;
+    this.shouldOutputEnumNumbers = shouldOutputEnumNumbers;
 
     try {
       this.newBuilder = clazz.getDeclaredMethod("newBuilder");
@@ -189,7 +196,7 @@ class ProtobufData {
         break;
 
       case ENUM:
-        builder = SchemaBuilder.string();
+        builder = this.shouldOutputEnumNumbers ? SchemaBuilder.int32() : SchemaBuilder.string();
         break;
 
       case MESSAGE: {
@@ -273,8 +280,13 @@ class ProtobufData {
       switch (schema.type()) {
         // Pass through types
         case INT32: {
-          Integer intValue = (Integer) value; // Validate type
-          converted = value;
+          if (value instanceof EnumValueDescriptor) {
+            EnumValueDescriptor enumValueDescriptorValue = (EnumValueDescriptor) value;
+            converted = enumValueDescriptorValue.getNumber();
+          } else {
+            Integer intValue = (Integer) value; // Validate type
+            converted = intValue;
+          }
           break;
         }
 

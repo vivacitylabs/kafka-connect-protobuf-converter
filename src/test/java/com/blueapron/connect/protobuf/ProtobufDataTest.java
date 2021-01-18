@@ -107,6 +107,11 @@ public class ProtobufDataTest {
       .build();
   }
 
+
+  private Schema getExpectedNestedTestProtoSchemaConnectMapWithEnumNumbers() {
+    return getExpectedNestedTestProtoSchema(true, true);
+  }
+
   private Schema getExpectedNestedTestProtoSchemaConnectMap() {
     return getExpectedNestedTestProtoSchema(true);
   }
@@ -155,6 +160,10 @@ public class ProtobufDataTest {
   }
 
   private Schema getExpectedNestedTestProtoSchema(boolean useConnectMapType) {
+    return getExpectedNestedTestProtoSchema(useConnectMapType, false);
+  }
+
+  private Schema getExpectedNestedTestProtoSchema(boolean useConnectMapType, boolean shouldOutputEnumNumbers) {
     final SchemaBuilder builder = SchemaBuilder.struct().name("NestedTestProto");
     final SchemaBuilder userIdBuilder = SchemaBuilder.struct();
     userIdBuilder.field("ba_com_user_id", SchemaBuilder.string().optional().build());
@@ -166,7 +175,7 @@ public class ProtobufDataTest {
     builder.field("is_active", SchemaBuilder.bool().optional().build());
     builder.field("experiments_active", SchemaBuilder.array(SchemaBuilder.string().optional().build()).optional().build());
     builder.field("updated_at", org.apache.kafka.connect.data.Timestamp.builder().optional().build());
-    builder.field("status", SchemaBuilder.string().optional().build());
+    builder.field("status", shouldOutputEnumNumbers ? SchemaBuilder.int32().optional().build() :  SchemaBuilder.string().optional().build());
     builder.field("complex_type", getComplexTypeSchemaBuilder().optional().build());
     if (useConnectMapType) {
       builder.field("map_type", SchemaBuilder.map(Schema.OPTIONAL_STRING_SCHEMA, Schema.OPTIONAL_STRING_SCHEMA).optional().build());
@@ -239,7 +248,11 @@ public class ProtobufDataTest {
   }
 
   private Struct getExpectedNestedProtoResultStringUserId(boolean useConnectMapType) throws ParseException {
-    Schema schema = getExpectedNestedTestProtoSchema(useConnectMapType);
+    return getExpectedNestedProtoResultStringUserId(useConnectMapType, false);
+  }
+
+  private Struct getExpectedNestedProtoResultStringUserId(boolean useConnectMapType, boolean shouldOutputEnumNumbers) throws ParseException {
+    Schema schema = getExpectedNestedTestProtoSchema(useConnectMapType, shouldOutputEnumNumbers);
     Struct result = new Struct(schema.schema());
     Struct userId = new Struct(schema.field("user_id").schema());
     userId.put("ba_com_user_id", "my_user");
@@ -255,7 +268,7 @@ public class ProtobufDataTest {
     experiments.add("second experiment");
     result.put("experiments_active", experiments);
 
-    result.put("status", "INACTIVE");
+    result.put("status", shouldOutputEnumNumbers ? 1 : "INACTIVE");
     if (useConnectMapType) {
       result.put("map_type", getTestKeyValueMap());
     } else {
@@ -355,6 +368,16 @@ public class ProtobufDataTest {
     Schema expectedSchema = getExpectedNestedTestProtoSchemaConnectMap();
     assertSchemasEqual(expectedSchema, result.schema());
     assertEquals(new SchemaAndValue(getExpectedNestedTestProtoSchemaConnectMap(), getExpectedNestedProtoResultStringUserId(true)), result);
+  }
+
+  @Test
+  public void testToConnectDataWithMessageWithSimpleMapFieldAndEnumValues() throws ParseException {
+    NestedTestProto message = createNestedTestProtoStringUserId();
+    ProtobufData protobufData = new ProtobufData(NestedTestProto.class, LEGACY_NAME, true, true);
+    SchemaAndValue result = protobufData.toConnectData(message.toByteArray());
+    Schema expectedSchema = getExpectedNestedTestProtoSchemaConnectMapWithEnumNumbers();
+    assertSchemasEqual(expectedSchema, result.schema());
+    assertEquals(new SchemaAndValue(getExpectedNestedTestProtoSchemaConnectMapWithEnumNumbers(), getExpectedNestedProtoResultStringUserId(true, true)), result);
   }
 
   @Test
